@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>첫 스텝 (First Step) - 시작이 반이다 투두앱</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #f8fafc;
+    }
+    .progress-ring__circle {
+      transition: stroke-dashoffset 0.25s linear;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+    @keyframes popIn {
+      0% { transform: scale(0.95); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-pop {
+      animation: popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* 커스텀 에너지 슬라이더 스타일 */
+    input[type="range"].energy-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      outline: none;
+      transition: background 0.2s ease;
+      cursor: pointer;
+    }
+    input[type="range"].energy-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 4px solid var(--thumb-color, #4f46e5);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+      cursor: grab;
+      transition: transform 0.15s ease, border-color 0.2s ease;
+    }
+    input[type="range"].energy-slider::-webkit-slider-thumb:active {
+      cursor: grabbing;
+      transform: scale(1.15);
+    }
+    input[type="range"].energy-slider::-moz-range-thumb {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 4px solid var(--thumb-color, #4f46e5);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+      cursor: grab;
+      transition: transform 0.15s ease, border-color 0.2s ease;
+    }
+  </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col items-center py-6 px-4">
+
+  <!-- 메인 컨테이너 -->
+  <div class="w-full max-w-md space-y-5">
+    
+    <!-- 상단 헤더 & 스트릭 -->
+    <header class="flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-xl font-extrabold tracking-tight text-indigo-600">첫 스텝</span>
+          <span class="text-xs font-semibold px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full">시작이 반이다</span>
+        </div>
+        <p class="text-xs text-slate-400 mt-0.5">거창한 계획 대신, 지금 10초만 움직여요</p>
+      </div>
+      <div class="flex items-center gap-2.5 text-right">
+        <div class="bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-100">
+          <div class="text-[11px] font-medium text-amber-700">연속 시동</div>
+          <div class="text-sm font-extrabold text-amber-600">🔥 <span id="streakCount">1</span>일째</div>
+        </div>
+        <div class="bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
+          <div class="text-[11px] font-medium text-emerald-700">스텝 달성</div>
+          <div class="text-sm font-extrabold text-emerald-600">✅ <span id="doneCount">0</span>회</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- 에너지 레벨(귀찮음 정도) 슬라이더 바 -->
+    <section class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-bold text-slate-700">오늘 나의 에너지 상태</span>
+        <span id="energyBadge" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 transition-colors">
+          🔋 보통 (기본 모드)
+        </span>
+      </div>
+
+      <!-- 슬라이더 트랙 영역 -->
+      <div class="px-1 pt-1">
+        <input 
+          type="range" 
+          id="energySlider" 
+          min="0" 
+          max="2" 
+          step="1" 
+          value="1" 
+          class="energy-slider"
+          oninput="handleSliderChange(this.value)"
+        />
+        <!-- 3단계 눈금 라벨 (클릭으로도 이동 가능) -->
+        <div class="flex justify-between text-[11px] font-semibold text-slate-400 mt-2 select-none">
+          <button type="button" onclick="setSliderValue(0)" id="label-0" class="text-left hover:text-slate-700 transition">🪫 방전 (귀찮음 MAX)</button>
+          <button type="button" onclick="setSliderValue(1)" id="label-1" class="text-center text-indigo-600 font-bold transition">🔋 보통</button>
+          <button type="button" onclick="setSliderValue(2)" id="label-2" class="text-right hover:text-slate-700 transition">⚡ 양호 (가속)</button>
+        </div>
+      </div>
+
+      <div class="bg-slate-50 px-3 py-2 rounded-xl flex items-center justify-between text-[11px]">
+        <span class="text-slate-500">분해 강도:</span>
+        <span id="energyDesc" class="font-semibold text-indigo-600">표준 15초 물리적 행동 개시 분해</span>
+      </div>
+    </section>
+
+    <!-- 할 일 입력 폼 -->
+    <section class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+      <form id="taskForm" class="flex gap-2">
+        <input 
+          type="text" 
+          id="taskInput" 
+          placeholder="미루고 있는 할 일을 적어보세요 (예: 전공책 1장 공부)" 
+          class="flex-1 text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+          required
+        />
+        <button 
+          type="submit" 
+          class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-sm font-bold rounded-xl transition-all shrink-0 shadow-sm">
+          쪼개기
+        </button>
+      </form>
+      <!-- 빠른 예시 칩 -->
+      <div class="flex flex-wrap gap-1.5">
+        <span class="text-[11px] text-slate-400 py-1">예시:</span>
+        <button type="button" onclick="quickFill('토익 RC 한 세트 풀기')" class="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition">📚 토익 RC 풀기</button>
+        <button type="button" onclick="quickFill('헬스장 가서 운동하기')" class="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition">🏃 헬스장 가기</button>
+        <button type="button" onclick="quickFill('방 책상 어지러진 거 정리하기')" class="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition">🧹 책상 정리하기</button>
+        <button type="button" onclick="quickFill('파이썬 코딩 과제 시작하기')" class="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition">💻 코딩 과제하기</button>
+      </div>
+    </section>
+
+    <!-- 할 일 카드 리스트 -->
+    <main id="taskList" class="space-y-4">
+      <!-- 동적 생성 영역 -->
+    </main>
+
+  </div>
+
+  <!-- 집중 타이머 모달 -->
+  <div id="timerModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl p-6 text-center space-y-5 animate-pop shadow-2xl">
+      
+      <div class="space-y-1">
+        <span id="modalStepIndicator" class="inline-block text-[11px] font-extrabold px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full mb-1">STEP 1</span>
+        <div>
+          <span id="modalBadge" class="inline-block text-xs font-bold px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full">지금 딱 15초만!</span>
+        </div>
+        <p class="text-xs text-slate-400 pt-1">다른 생각은 끄고 이 행동 하나만 해보세요</p>
+      </div>
+
+      <!-- 원형 프로그레스 타이머 -->
+      <div class="relative w-36 h-36 mx-auto flex items-center justify-center">
+        <svg class="w-36 h-36" viewBox="0 0 120 120">
+          <circle class="text-slate-100" stroke-width="8" stroke="currentColor" fill="transparent" r="52" cx="60" cy="60"/>
+          <circle id="progressCircle" class="text-indigo-600 progress-ring__circle" stroke-width="8" stroke-linecap="round" stroke="currentColor" fill="transparent" r="52" cx="60" cy="60" stroke-dasharray="326.72" stroke-dashoffset="0"/>
+        </svg>
+        <div class="absolute flex flex-col items-center">
+          <span id="timerDisplay" class="text-4xl font-extrabold text-slate-800 tracking-tight">15</span>
+          <span class="text-xs font-medium text-slate-400">초 남음</span>
+        </div>
+      </div>
+
+      <!-- 현재 실행할 스텝 문구 -->
+      <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+        <p id="modalActionText" class="text-base font-bold text-slate-800 leading-snug"></p>
+      </div>
+
+      <!-- 진행 중 액션 버튼 (즉시 달성 + 다음 스텝 / 이번 스텝만 달성 / 취소) -->
+      <div id="timerRunningActions" class="space-y-2">
+        <button id="btnInstantNext" type="button" onclick="instantCompleteAndNext()" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-xl text-sm shadow-md transition flex items-center justify-center gap-1.5">
+          <span>✅ 달성 완료! 바로 다음 스텝으로</span>
+        </button>
+        <button type="button" onclick="instantCompleteAndStop()" class="w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-xl text-xs transition">
+          🛑 이번 스텝만 달성하고 멈추기
+        </button>
+        <div class="pt-1">
+          <button type="button" onclick="closeTimer()" class="text-xs text-slate-400 hover:text-slate-600 underline">
+            잠시 취소하기
+          </button>
+        </div>
+      </div>
+
+      <!-- 타이머 0초 도달 시 완료 선택지 -->
+      <div id="timerCompleteActions" class="hidden space-y-2.5 animate-pop">
+        <div id="modalCompleteMsg" class="p-3 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-semibold">
+          🎉 시동 걸기 성공! 뇌의 저항 장벽을 깼습니다.
+        </div>
+        <button type="button" onclick="completeAndStop()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm shadow-md transition active:scale-95">
+          🛑 여기서 멈추고 완료 도장 찍기 (합법적 탈출구)
+        </button>
+        <button id="btnContinueNext" type="button" onclick="completeAndNextStep()" class="w-full py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-sm transition">
+          🔥 탄력 붙었으니 다음 스텝(STEP 2) 바로 시작하기
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // 상태 관리
+    const energyLevels = ['low', 'mid', 'high'];
+    let currentEnergy = 'mid';
+    let tasks = JSON.parse(localStorage.getItem('firstStepTasksV2') || '[]');
+    let stats = JSON.parse(localStorage.getItem('firstStepStatsV2') || '{"streak": 1, "done": 0}');
+    
+    let activeTaskId = null;
+    let activeStepIndex = 0;
+    let timerInterval = null;
+    let totalSeconds = 15;
+    let remainingSeconds = 15;
+
+    const energyConfig = {
+      low: {
+        index: 0,
+        label: '🪫 방전 (귀찮음 MAX)',
+        shortLabel: '🪫 방전 모드',
+        desc: '몸을 일으키는 수준부터 초극단 분해 (10초 컷)',
+        seconds: 10,
+        colorHex: '#e11d48',
+        badgeClass: 'bg-rose-50 text-rose-600 border-rose-200',
+        pillClass: 'bg-rose-50 text-rose-600'
+      },
+      mid: {
+        index: 1,
+        label: '🔋 보통 (기본 모드)',
+        shortLabel: '🔋 보통 모드',
+        desc: '표준 15초 물리적 행동 개시 분해',
+        seconds: 15,
+        colorHex: '#4f46e5',
+        badgeClass: 'bg-indigo-50 text-indigo-600 border-indigo-200',
+        pillClass: 'bg-indigo-50 text-indigo-600'
+      },
+      high: {
+        index: 2,
+        label: '⚡ 양호 (가속 모드)',
+        shortLabel: '⚡ 양호 모드',
+        desc: '실행 탄력을 바로 붙이는 30초 가속 분해',
+        seconds: 30,
+        colorHex: '#d97706',
+        badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+        pillClass: 'bg-amber-50 text-amber-700'
+      }
+    };
+
+    // 슬라이더 UI 업데이트
+    function updateSliderUI(index) {
+      const level = energyLevels[index];
+      currentEnergy = level;
+      const cfg = energyConfig[level];
+
+      const slider = document.getElementById('energySlider');
+      slider.value = index;
+      slider.style.setProperty('--thumb-color', cfg.colorHex);
+
+      const percentage = (index / 2) * 100;
+      slider.style.background = `linear-gradient(to right, ${cfg.colorHex} 0%, ${cfg.colorHex} ${percentage}%, #e2e8f0 ${percentage}%, #e2e8f0 100%)`;
+
+      const badge = document.getElementById('energyBadge');
+      badge.textContent = cfg.label;
+      badge.className = `text-xs font-bold px-2.5 py-0.5 rounded-full transition-colors ${cfg.pillClass}`;
+
+      const desc = document.getElementById('energyDesc');
+      desc.textContent = cfg.desc;
+      desc.style.color = cfg.colorHex;
+
+      [0, 1, 2].forEach(i => {
+        const lbl = document.getElementById(`label-${i}`);
+        if (i === Number(index)) {
+          lbl.classList.add('font-bold');
+          lbl.style.color = cfg.colorHex;
+        } else {
+          lbl.classList.remove('font-bold');
+          lbl.style.color = '#94a3b8';
+        }
+      });
+    }
+
+    function handleSliderChange(val) {
+      updateSliderUI(Number(val));
+    }
+
+    function setSliderValue(index) {
+      updateSliderUI(index);
+    }
+
+    // 스마트 규칙 기반 마이크로 분해 엔진
+    function generateMicroSteps(taskText, energy) {
+      const t = taskText.trim();
+      const isStudy = /공부|책|토익|강의|인강|독서|암기|단어|문제|시험|자격증|전공/.test(t);
+      const isWorkout = /운동|헬스|러닝|달리기|스트레칭|스쿼트|산책|요가|홈트/.test(t);
+      const isClean = /정리|청소|설거지|빨래|방|책상|분리수거/.test(t);
+      const isWork = /코딩|파이썬|보고서|과제|기획|메일|작업|글쓰기|개발|디자인/.test(t);
+
+      let steps = [];
+      let encouragement = '';
+
+      if (isStudy) {
+        if (energy === 'low') {
+          steps = [
+            `의자에 앉아 '${t}' 관련 교재(또는 화면) 표지만 펼쳐놓기`,
+            '첫 페이지 첫 문장만 소리 내어 읽기',
+            '핵심 단어 1개에만 형광펜 긋고 내용 훑기'
+          ];
+          encouragement = '방전된 날엔 책을 펴는 것만으로도 이미 상위 10%의 실행력입니다.';
+        } else if (energy === 'mid') {
+          steps = [
+            `책상 위 스마트폰을 뒤집어 두고 '${t}' 첫 문단만 읽기`,
+            '1문제(또는 1페이지)만 가볍게 풀고 채점하기',
+            '틀린 부분이나 핵심 개념 한 줄만 노트에 적기'
+          ];
+          encouragement = '일단 첫 문장을 읽으면 자이가르닉 효과로 뇌가 알아서 다음 줄을 찾습니다.';
+        } else {
+          steps = [
+            `타이머를 켜고 '${t}'의 목차와 핵심 개념 3가지만 훑어보기`,
+            '연습 문제 3개(또는 2페이지) 연속으로 집중해서 풀기',
+            '방금 본 내용 머릿속으로 떠올리며 핵심 요약하기'
+          ];
+          encouragement = '컨디션이 좋을 때 30초만 시동을 걸면 몰입 상태(Flow)로 바로 진입합니다.';
+        }
+      } else if (isWorkout) {
+        if (energy === 'low') {
+          steps = [
+            '양말과 운동복(또는 외출복) 손에 집어 들기',
+            '현관문 열고 신발 신기',
+            '집 앞 3분만 걷거나 가볍게 스트레칭하기'
+          ];
+          encouragement = '운동은 헬스장 문 앞까지 가는 게 90%입니다. 입구만 찍고 와도 성공이에요!';
+        } else if (energy === 'mid') {
+          steps = [
+            '운동복으로 갈아입고 물통에 물 채우기',
+            '가볍게 목·어깨·고관절 스트레칭 1분 하기',
+            '가장 만만한 첫 번째 루틴 1세트만 가볍게 시작하기'
+          ];
+          encouragement = '운동복을 입는 순간 뇌는 이미 운동 모드로 전환됩니다.';
+        } else {
+          steps = [
+            '운동화 끈 묶고 신나는 플레이리스트 재생하기',
+            '워밍업 유산소(또는 동적 스트레칭) 3분 진행하기',
+            '오늘 메인 운동 첫 세트 본 무게로 들어가기'
+          ];
+          encouragement = '에너지가 충분합니다! 음악만 틀면 몸이 먼저 반응할 거예요.';
+        }
+      } else if (isClean) {
+        if (energy === 'low') {
+          steps = [
+            '눈앞에 보이는 쓰레기 딱 1개만 집어서 버리기',
+            '책상 위 컵/그릇 1개만 싱크대로 가져다 두기',
+            '제자리에 없는 물건 2개만 제자리에 놓기'
+          ];
+          encouragement = '전부 다 치울 필요 없습니다. 딱 1개만 치워도 공간의 흐름이 바뀝니다.';
+        } else if (energy === 'mid') {
+          steps = [
+            '방 한가운데 서서 큰 쓰레기 3개만 봉투에 넣기',
+            '책상 왼쪽 구역만 물티슈로 닦아내기',
+            '어질러진 옷이나 소지품 3개만 제자리로 정리하기'
+          ];
+          encouragement = '좁은 구역 한 곳만 깨끗해져도 도파민이 분비되어 다음 구역이 쉬워집니다.';
+        } else {
+          steps = [
+            '환기용 창문 열고 가장 눈에 띄는 표면 물건 한곳으로 모으기',
+            '모은 물건 카테고리별로 빠르게 분류해서 제자리 넣기',
+            '바닥과 책상 표면 닦아내고 마무리하기'
+          ];
+          encouragement = '시각적 노이즈만 줄여도 머릿속이 훨씬 개운해집니다!';
+        }
+      } else if (isWork) {
+        if (energy === 'low') {
+          steps = [
+            `노트북을 열고 '${t}' 작업 파일(또는 에디터) 창만 띄우기`,
+            '파일 맨 위에 오늘 날짜와 제목 한 줄만 적기',
+            '할 일 목록 3줄만 대충 메모하기'
+          ];
+          encouragement = '빈 화면을 여는 게 제일 어렵습니다. 창만 띄워도 절반은 끝났어요.';
+        } else if (energy === 'mid') {
+          steps = [
+            `'${t}' 파일을 열고 가장 만만한 첫 문장(또는 코드 한 줄)만 작성하기`,
+            '필요한 참고 자료 탭 1개만 열어두기',
+            '완벽주의 버리고 초안 3줄만 빠르게 적어 내려가기'
+          ];
+          encouragement = '완벽하게 하려 하지 마세요. 엉망진창 초안 한 줄이 시작입니다.';
+        } else {
+          steps = [
+            `'${t}'의 전체 뼈대(목차/함수 구조) 3단계만 빠르게 적기`,
+            '첫 번째 파트 핵심 로직/내용 집중해서 작성하기',
+            '중간 저장 후 전체 흐름 한 번 점검하기'
+          ];
+          encouragement = '뼈대만 잡아두면 나머지는 채워 넣기만 하면 됩니다.';
+        }
+      } else {
+        if (energy === 'low') {
+          steps = [
+            `'${t}'을(를) 하기 위해 필요한 도구/화면 딱 1가지만 눈앞에 꺼내두기`,
+            '그 자리에서 자세만 잡고 10초 동안 바라보기',
+            '가장 작은 1단계 행동만 1분간 가볍게 해보기'
+          ];
+          encouragement = '오늘은 시동만 걸어도 대성공입니다. 언제든 합법적 탈출구를 쓰세요!';
+        } else if (energy === 'mid') {
+          steps = [
+            `'${t}'의 가장 첫 번째 물리적 동작(열기/꺼내기/이동하기) 바로 실행하기`,
+            '전체 분량의 10%만 가볍게 진행해 보기',
+            '탄력 받은 김에 핵심 구간 한 번 더 이어가기'
+          ];
+          encouragement = '행동이 먼저 일어나야 뇌에서 동기부여 도파민이 나옵니다.';
+        } else {
+          steps = [
+            `'${t}'의 시작 버튼을 누르고 첫 30초 동안 멈추지 않고 몰입하기`,
+            '핵심 단계 1가지 집중해서 완료하기',
+            '마무리 점검 후 스스로에게 작은 보상 주기'
+          ];
+          encouragement = '지금 에너지가 좋습니다. 30초만 넘기면 관성이 붙어 술술 풀릴 거예요!';
+        }
+      }
+
+      return {
+        steps: steps.map(text => ({ text, done: false })),
+        encouragement
+      };
+    }
+
+    function quickFill(text) {
+      const input = document.getElementById('taskInput');
+      input.value = text;
+      addTask(text);
+      input.value = '';
+    }
+
+    function addTask(title) {
+      const breakdown = generateMicroSteps(title, currentEnergy);
+      const newTask = {
+        id: Date.now(),
+        title,
+        energy: currentEnergy,
+        steps: breakdown.steps,
+        encouragement: breakdown.encouragement
+      };
+      tasks.unshift(newTask);
+      saveAndRender();
+    }
+
+    function reBreakdownTask(id) {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+      const updated = generateMicroSteps(task.title, currentEnergy);
+      task.energy = currentEnergy;
+      task.steps = updated.steps;
+      task.encouragement = updated.encouragement;
+      saveAndRender();
+    }
+
+    function toggleStepDone(taskId, stepIndex) {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task || !task.steps[stepIndex]) return;
+
+      const wasDone = task.steps[stepIndex].done;
+      task.steps[stepIndex].done = !wasDone;
+
+      if (!wasDone) {
+        stats.done += 1;
+        if (task.steps.every(s => s.done) && typeof confetti === 'function') {
+          confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+        }
+      } else {
+        stats.done = Math.max(0, stats.done - 1);
+      }
+      saveAndRender();
+    }
+
+    function deleteTask(id) {
+      tasks = tasks.filter(t => t.id !== id);
+      saveAndRender();
+    }
+
+    function saveAndRender() {
+      localStorage.setItem('firstStepTasksV2', JSON.stringify(tasks));
+      localStorage.setItem('firstStepStatsV2', JSON.stringify(stats));
+      document.getElementById('streakCount').textContent = stats.streak;
+      document.getElementById('doneCount').textContent = stats.done;
+      renderTasks();
+    }
+
+    function renderTasks() {
+      const listEl = document.getElementById('taskList');
+      if (tasks.length === 0) {
+        listEl.innerHTML = `
+          <div class="text-center py-12 px-4 bg-white rounded-2xl border border-dashed border-slate-200">
+            <div class="text-3xl mb-2">🌱</div>
+            <p class="text-sm font-semibold text-slate-600">아직 등록된 할 일이 없어요</p>
+            <p class="text-xs text-slate-400 mt-1">위 입력창에 미루고 있는 일을 적으면<br/>당장 할 수 있는 초소형 첫 스텝으로 쪼개드릴게요.</p>
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = tasks.map(task => {
+        const cfg = energyConfig[task.energy] || energyConfig.mid;
+        const completedCount = task.steps.filter(s => s.done).length;
+        const totalSteps = task.steps.length;
+        const isAllDone = completedCount === totalSteps;
+        const isStarted = completedCount > 0;
+
+        let currentFocusIndex = task.steps.findIndex(s => !s.done);
+        if (currentFocusIndex === -1) currentFocusIndex = totalSteps - 1;
+        const focusStep = task.steps[currentFocusIndex];
+
+        return `
+          <div class="bg-white rounded-2xl p-5 shadow-sm border ${isAllDone ? 'border-emerald-300 bg-emerald-50/20' : (isStarted ? 'border-indigo-200' : 'border-slate-100')} space-y-4 animate-pop">
+            
+            <!-- 상단 원래 목표 & 진행률 뱃지 -->
+            <div class="flex items-start justify-between gap-2">
+              <div class="space-y-1">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="text-[11px] font-bold px-2 py-0.5 rounded-md border ${cfg.badgeClass}">${cfg.shortLabel}</span>
+                  ${isAllDone 
+                    ? '<span class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-600 text-white">🏆 전체 목표 완수!</span>' 
+                    : (isStarted 
+                        ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700">✅ 시동 완료 (${completedCount}/${totalSteps})</span>` 
+                        : `<span class="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-500">진행 0/${totalSteps}</span>`
+                      )
+                  }
+                </div>
+                <h3 class="text-sm font-bold text-slate-600 ${isAllDone ? 'line-through text-slate-400' : ''}">목표: ${escapeHtml(task.title)}</h3>
+              </div>
+              <div class="flex items-center gap-1 shrink-0">
+                <button onclick="reBreakdownTask(${task.id})" title="현재 슬라이더 에너지로 다시 쪼개기" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition text-xs">
+                  🔄
+                </button>
+                <button onclick="deleteTask(${task.id})" title="삭제" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition text-xs">
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <!-- 현재 집중 스텝 하이라이트 카드 -->
+            ${!isAllDone ? `
+              <div class="bg-slate-900 text-white p-4 rounded-xl space-y-3 shadow-inner transition-all">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] font-bold uppercase tracking-wider ${currentFocusIndex === 0 ? 'text-indigo-300' : 'text-amber-300'}">
+                    STEP ${currentFocusIndex + 1} · ${currentFocusIndex === 0 ? '가장 쉬운 첫 행동' : '탄력 이어가기'}
+                  </span>
+                  <span class="text-[11px] text-slate-400">${cfg.seconds}초 컷</span>
+                </div>
+                <p class="text-base font-bold leading-snug text-white">
+                  "${escapeHtml(focusStep.text)}"
+                </p>
+                <div class="flex gap-2">
+                  <button 
+                    onclick="startTimer(${task.id}, ${currentFocusIndex})" 
+                    class="flex-1 py-2.5 bg-indigo-500 hover:bg-indigo-400 active:scale-[0.98] text-white font-bold rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow">
+                    <span>⏱️ 지금 ${cfg.seconds}초만 시작하기</span>
+                  </button>
+                  <button 
+                    onclick="toggleStepDone(${task.id}, ${currentFocusIndex})" 
+                    title="타이머 없이 바로 완료 체크"
+                    class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg text-xs transition">
+                    ✓ 완료
+                  </button>
+                </div>
+              </div>
+            ` : `
+              <div class="bg-emerald-600 text-white p-4 rounded-xl text-center space-y-1 shadow-sm">
+                <div class="text-sm font-extrabold">🎉 모든 스텝을 완수하셨습니다!</div>
+                <p class="text-xs text-emerald-100">작은 첫 스텝이 모여 큰 목표를 끝냈어요.</p>
+              </div>
+            `}
+
+            <!-- 전체 스텝 체크리스트 -->
+            <div class="space-y-2 pt-1">
+              <div class="flex items-center justify-between text-[11px] text-slate-400">
+                <span class="font-semibold">전체 실행 로드맵 (클릭하여 체크)</span>
+                <span>${completedCount} / ${totalSteps} 완료</span>
+              </div>
+              <ul class="space-y-1.5">
+                ${task.steps.map((step, idx) => {
+                  const isCurrent = !isAllDone && idx === currentFocusIndex;
+                  return `
+                    <li 
+                      onclick="toggleStepDone(${task.id}, ${idx})"
+                      class="flex items-center gap-2.5 p-2 rounded-xl border text-xs cursor-pointer transition select-none
+                        ${step.done 
+                          ? 'bg-emerald-50/60 border-emerald-200/70 text-slate-400' 
+                          : (isCurrent 
+                              ? 'bg-indigo-50/50 border-indigo-200 text-slate-800 font-semibold' 
+                              : 'bg-slate-50/70 border-slate-100 text-slate-600 hover:bg-slate-100')
+                        }">
+                      <span class="w-5 h-5 rounded-full font-bold text-[11px] flex items-center justify-center shrink-0 transition
+                        ${step.done 
+                          ? 'bg-emerald-500 text-white' 
+                          : (isCurrent ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600')
+                        }">
+                        ${step.done ? '✓' : idx + 1}
+                      </span>
+                      <span class="flex-1 leading-snug ${step.done ? 'line-through' : ''}">${escapeHtml(step.text)}</span>
+                    </li>
+                  `;
+                }).join('')}
+              </ul>
+              <p class="text-[11px] text-indigo-600/90 bg-indigo-50/70 px-3 py-2 rounded-lg mt-2">
+                💡 ${escapeHtml(task.encouragement)}
+              </p>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 타이머 제어 로직
+    function startTimer(taskId, stepIndex) {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task || !task.steps[stepIndex]) return;
+
+      activeTaskId = taskId;
+      activeStepIndex = stepIndex;
+      const cfg = energyConfig[task.energy] || energyConfig.mid;
+      totalSeconds = cfg.seconds;
+      remainingSeconds = totalSeconds;
+
+      const hasNext = stepIndex + 1 < task.steps.length;
+
+      document.getElementById('modalStepIndicator').textContent = `STEP ${stepIndex + 1} / ${task.steps.length}`;
+      document.getElementById('modalBadge').textContent = `지금 딱 ${totalSeconds}초만!`;
+      document.getElementById('modalActionText').textContent = task.steps[stepIndex].text;
+      document.getElementById('timerDisplay').textContent = remainingSeconds;
+      
+      // 카운트다운 중 즉시 달성 버튼 문구 설정
+      const instantNextBtn = document.getElementById('btnInstantNext');
+      if (hasNext) {
+        instantNextBtn.textContent = `✅ 달성 완료! 바로 STEP ${stepIndex + 2}로 넘어가기`;
+      } else {
+        instantNextBtn.textContent = `🏆 마지막 스텝 달성 완료!`;
+      }
+
+      // 타이머 종료 후 다음 스텝 버튼 문구 설정
+      const nextBtn = document.getElementById('btnContinueNext');
+      if (hasNext) {
+        nextBtn.classList.remove('hidden');
+        nextBtn.textContent = `🔥 탄력 붙었으니 다음 스텝(STEP ${stepIndex + 2}) 바로 시작하기`;
+      } else {
+        nextBtn.classList.add('hidden');
+      }
+
+      document.getElementById('timerRunningActions').classList.remove('hidden');
+      document.getElementById('timerCompleteActions').classList.add('hidden');
+
+      const circle = document.getElementById('progressCircle');
+      const circumference = 326.72;
+      circle.style.strokeDashoffset = 0;
+
+      document.getElementById('timerModal').classList.remove('hidden');
+
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        remainingSeconds--;
+        document.getElementById('timerDisplay').textContent = Math.max(0, remainingSeconds);
+        
+        const offset = circumference - (remainingSeconds / totalSeconds) * circumference;
+        circle.style.strokeDashoffset = offset;
+
+        if (remainingSeconds <= 0) {
+          clearInterval(timerInterval);
+          onTimerFinish();
+        }
+      }, 1000);
+    }
+
+    // 카운트다운 도중 즉시 달성하고 다음 스텝으로 이동
+    function instantCompleteAndNext() {
+      clearInterval(timerInterval);
+      if (typeof confetti === 'function') {
+        confetti({ particleCount: 55, spread: 55, origin: { y: 0.6 } });
+      }
+      completeAndNextStep();
+    }
+
+    // 카운트다운 도중 이번 스텝만 즉시 달성하고 종료
+    function instantCompleteAndStop() {
+      clearInterval(timerInterval);
+      if (typeof confetti === 'function') {
+        confetti({ particleCount: 55, spread: 55, origin: { y: 0.6 } });
+      }
+      completeAndStop();
+    }
+
+    function onTimerFinish() {
+      if (typeof confetti === 'function') {
+        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+      }
+      const msgEl = document.getElementById('modalCompleteMsg');
+      if (activeStepIndex === 0) {
+        msgEl.textContent = '🎉 1단계 시동 걸기 성공! 여기서 멈춰도 오늘 목표 달성입니다.';
+      } else {
+        msgEl.textContent = `🎉 STEP ${activeStepIndex + 1} 달성! 실행 관성이 제대로 붙었습니다.`;
+      }
+
+      document.getElementById('timerRunningActions').classList.add('hidden');
+      document.getElementById('timerCompleteActions').classList.remove('hidden');
+    }
+
+    // 현재 스텝 완료 처리 후 멈추기 (합법적 탈출구)
+    function completeAndStop() {
+      const task = tasks.find(t => t.id === activeTaskId);
+      if (task && task.steps[activeStepIndex] && !task.steps[activeStepIndex].done) {
+        task.steps[activeStepIndex].done = true;
+        stats.done += 1;
+      }
+      saveAndRender();
+      closeTimer();
+    }
+
+    // 현재 스텝 완료 처리 후 즉시 다음 스텝(2단계, 3단계...) 타이머로 진입
+    function completeAndNextStep() {
+      const task = tasks.find(t => t.id === activeTaskId);
+      if (!task) return closeTimer();
+
+      if (task.steps[activeStepIndex] && !task.steps[activeStepIndex].done) {
+        task.steps[activeStepIndex].done = true;
+        stats.done += 1;
+      }
+      saveAndRender();
+
+      const nextIndex = activeStepIndex + 1;
+      if (nextIndex < task.steps.length) {
+        startTimer(activeTaskId, nextIndex);
+      } else {
+        // 모든 스텝 완료 시 큰 축하 폭죽
+        if (typeof confetti === 'function') {
+          confetti({ particleCount: 100, spread: 75, origin: { y: 0.6 } });
+        }
+        closeTimer();
+      }
+    }
+
+    function closeTimer() {
+      clearInterval(timerInterval);
+      document.getElementById('timerModal').classList.add('hidden');
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // 폼 제출 이벤트
+    document.getElementById('taskForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = document.getElementById('taskInput');
+      if (input.value.trim()) {
+        addTask(input.value.trim());
+        input.value = '';
+      }
+    });
+
+    // 초기화
+    updateSliderUI(1);
+    if (tasks.length === 0) {
+      addTask('공부 책상 앉아서 교재 1챕터 보기');
+    } else {
+      saveAndRender();
+    }
+  </script>
+</body>
+</html>
